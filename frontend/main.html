@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TedOJ - 题目列表</title>
+    <link rel="stylesheet" href="./css/style.css">
+</head>
+<body>
+<header class="lc-topbar">
+    <a class="lc-brand" href="./main.html">
+        <span class="lc-logo">T</span>
+        <span>TedOJ</span>
+    </a>
+    <nav class="lc-nav">
+        <a class="active" href="./main.html">题库</a>
+        <a href="./submissions.html">提交记录</a>
+        <a href="./admin-create-problem.html">创建题目</a>
+    </nav>
+    <div class="lc-actions">
+        <input id="topSearch" class="lc-search" type="search" placeholder="搜索题目">
+    </div>
+</header>
+
+<div class="lc-shell home-shell">
+    <aside class="lc-sidebar" aria-hidden="true"></aside>
+
+    <main class="lc-main">
+        <section class="topic-panel" aria-label="题目标签">
+            <div id="topicTags" class="topic-tags"></div>
+        </section>
+
+        <section class="problem-board">
+            <div class="problem-tools">
+                <input id="problemSearch" class="problem-search" type="search" placeholder="搜索题目">
+                <select id="difficultyFilter" class="difficulty-filter" aria-label="按难度筛选">
+                    <option value="">全部难度</option>
+                    <option value="easy">简单</option>
+                    <option value="medium">中等</option>
+                    <option value="hard">困难</option>
+                </select>
+                <button id="refreshBtn" class="icon-button" type="button" title="刷新">↻</button>
+                <span id="problemCount" class="problem-count">0 道题</span>
+            </div>
+
+            <div class="problem-table-wrap">
+                <table class="problem-table">
+                    <thead>
+                    <tr>
+                        <th>题目</th>
+                        <th>标签</th>
+                        <th>通过率</th>
+                        <th>难度</th>
+                    </tr>
+                    </thead>
+                    <tbody id="problemList"></tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+
+</div>
+
+<script src="./js/api.js" defer></script>
+<script src="./js/main.js" defer></script>
+</body>
+</html>

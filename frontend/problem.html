@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TedOJ - 题目详情</title>
+    <link rel="stylesheet" href="./css/style.css">
+</head>
+<body class="problem-work-body">
+<header class="work-topbar">
+    <div class="work-left">
+        <a class="work-logo" href="./main.html">T</a>
+        <a class="work-link" href="./main.html">题库</a>
+        <span class="work-separator">/</span>
+        <span class="work-current">题目详情</span>
+    </div>
+    <div class="work-center">
+        <button id="resetCodeBtn" class="work-tool" type="button">重置代码</button>
+        <button id="submitBtn" class="work-submit" type="button">提交</button>
+    </div>
+    <div class="work-right">
+        <a id="problemSubmissionsLink" class="work-link" href="./submissions.html">提交记录</a>
+        <a class="work-link" href="./admin-create-problem.html">创建题目</a>
+    </div>
+</header>
+
+<main class="work-layout">
+    <section class="work-pane statement-pane">
+        <div class="pane-tabs">
+            <span class="active">题目描述</span>
+        </div>
+        <div class="statement-scroll">
+            <h1 id="problemTitle">题目加载中...</h1>
+            <div class="statement-badges">
+                <span id="difficultyBadge" class="problem-difficulty">-</span>
+                <div id="problemTags" class="problem-tags"></div>
+            </div>
+
+            <p id="problemDescription" class="statement-description">正在加载题目内容...</p>
+
+            <section class="statement-section">
+                <h2>示例</h2>
+                <div id="visibleCases" class="leetcode-examples"></div>
+            </section>
+
+            <section class="statement-section meta-strip">
+                <div>
+                    <span id="functionNameLabel">函数名</span>
+                    <code id="functionName">-</code>
+                </div>
+                <div>
+                    <span>语言</span>
+                    <code>Python</code>
+                </div>
+                <div>
+                    <span>创建时间</span>
+                    <code id="problemMeta">-</code>
+                </div>
+            </section>
+        </div>
+    </section>
+
+    <section class="work-pane editor-pane">
+        <div class="editor-head">
+            <strong><span>/</span> 代码</strong>
+            <div class="editor-meta">
+                <span>Python</span>
+            </div>
+        </div>
+
+        <textarea id="codeEditor" class="code-editor leetcode-editor" spellcheck="false" aria-label="Python 代码"></textarea>
+
+        <div class="editor-status">
+            <span id="submitStatus">已就绪</span>
+        </div>
+
+        <div class="result-tabs">
+            <span class="active">测试结果</span>
+        </div>
+        <div id="resultResizeHandle" class="result-resize-handle hidden" title="拖动调整测试结果高度" aria-hidden="true"></div>
+        <div id="judgeResult" class="result-panel leetcode-result hidden" aria-live="polite"></div>
+    </section>
+</main>
+
+<script src="./js/jquery-3.4.1.min.js" defer></script>
+<script src="./js/api.js" defer></script>
+<script src="./js/problem.js" defer></script>
+</body>
+</html>

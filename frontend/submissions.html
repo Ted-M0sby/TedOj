@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TedOJ - 提交记录</title>
+    <link rel="stylesheet" href="./css/style.css">
+</head>
+<body class="submissions-body">
+<header class="lc-topbar">
+    <a class="lc-brand" href="./main.html">
+        <span class="lc-logo">T</span>
+        <span>TedOJ</span>
+    </a>
+    <nav class="lc-nav">
+        <a href="./main.html">题库</a>
+        <a class="active" href="./submissions.html">提交记录</a>
+        <a href="./admin-create-problem.html">创建题目</a>
+    </nav>
+    <div class="lc-actions">
+        <button id="refreshBtn" class="icon-button" type="button" title="刷新">↻</button>
+    </div>
+</header>
+
+<div class="lc-shell submissions-shell">
+    <aside class="lc-sidebar" aria-hidden="true"></aside>
+
+    <main class="lc-main">
+        <section class="submission-tools" aria-label="筛选条件">
+            <form id="filterForm" class="submission-filter">
+                <input id="problemIdFilter" name="problemIdFilter" type="number" min="1" placeholder="题目 ID">
+                <button class="button secondary" type="submit">筛选</button>
+                <button id="clearFilterBtn" class="button ghost" type="button">清空</button>
+            </form>
+            <span id="submissionCount" class="problem-count">0 条</span>
+            <p id="apiStatus" class="status-line"></p>
+        </section>
+
+        <section class="problem-board submissions-board">
+            <div class="problem-table-wrap submissions-table-wrap">
+                <table class="problem-table submissions-table">
+                    <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>题目</th>
+                        <th>状态</th>
+                        <th>通过</th>
+                        <th>耗时</th>
+                        <th>时间</th>
+                        <th>操作</th>
+                    </tr>
+                    </thead>
+                    <tbody id="submissionRows"></tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+
+    <aside class="lc-right submissions-right">
+        <section class="submission-detail-card">
+            <div class="right-card-head">
+                <strong>提交详情</strong>
+                <span id="detailStatus" class="muted">请选择一条记录</span>
+            </div>
+            <div id="submissionDetail" class="detail-empty">点击左侧“详情”查看单次判题结果。</div>
+        </section>
+    </aside>
+</div>
+
+<script src="./js/api.js" defer></script>
+<script src="./js/submissions.js" defer></script>
+</body>
+</html>

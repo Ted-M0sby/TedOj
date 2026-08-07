@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TedOJ - 创建题目</title>
+    <link rel="stylesheet" href="./css/style.css">
+</head>
+<body class="admin-create-body">
+<header class="lc-topbar">
+    <a class="lc-brand" href="./main.html">
+        <span class="lc-logo">T</span>
+        <span>TedOJ</span>
+    </a>
+    <nav class="lc-nav">
+        <a href="./main.html">题库</a>
+        <a href="./submissions.html">提交记录</a>
+        <a class="active" href="./admin-create-problem.html">创建题目</a>
+    </nav>
+    <div class="lc-actions">
+        <span class="problem-count">AI 题目生成</span>
+    </div>
+</header>
+
+<main class="admin-create-page">
+    <section class="admin-panel admin-form-panel">
+        <div class="section-head">
+            <div>
+                <h1>创建题目</h1>
+                <p class="muted">填写要求后生成草稿，确认无误再保存到题库。</p>
+            </div>
+        </div>
+
+        <form id="draftForm" class="admin-problem-form">
+            <label>
+                <span>管理员密码</span>
+                <input id="adminPassword" type="password" autocomplete="current-password" placeholder="请输入管理员密码" required>
+            </label>
+
+            <label>
+                <span>题目名称</span>
+                <textarea id="problemName" rows="3" placeholder="例如：两数和"></textarea>
+            </label>
+
+            <label>
+                <span>判题模式</span>
+                <select id="judgeMode" required>
+                    <option value="stdio">stdio</option>
+                    <option value="function">function</option>
+                </select>
+            </label>
+
+            <label>
+                <span>出题要求</span>
+                <textarea id="problemRequirement" rows="5" placeholder="描述希望生成的题目类型、输入输出、限制或考察点。" required></textarea>
+            </label>
+
+            <label>
+                <span>难度</span>
+                <select id="difficulty" required>
+                    <option value="">请选择</option>
+                    <option value="Easy">Easy</option>
+                    <option value="Medium">Medium</option>
+                    <option value="Hard">Hard</option>
+                </select>
+            </label>
+
+            <label>
+                <span>知识点标签</span>
+                <input id="tags" type="text" placeholder="例如：数组,哈希表" required>
+            </label>
+
+            <label>
+                <span>示例用例数</span>
+                <input id="visibleCaseCount" type="number" min="2" max="8" value="3" required>
+            </label>
+
+            <div class="action-row">
+                <button id="generateBtn" class="button primary" type="submit">生成草稿</button>
+                <button id="clearBtn" class="button ghost" type="button">清空</button>
+                <span id="draftStatus" class="status-line">等待输入。</span>
+            </div>
+        </form>
+    </section>
+
+    <section class="admin-panel admin-preview-panel">
+        <div class="section-head">
+            <div>
+                <h2>题目预览</h2>
+                <p class="muted">保存前请检查题面、初始代码和测试用例。</p>
+            </div>
+            <button id="saveBtn" class="button primary" type="button" disabled>确认保存</button>
+        </div>
+
+        <div id="draftPreview" class="admin-preview-empty">尚未生成题目草稿。</div>
+    </section>
+</main>
+
+<script src="./js/api.js" defer></script>
+<script src="./js/admin-create-problem.js" defer></script>
+</body>
+</html>
