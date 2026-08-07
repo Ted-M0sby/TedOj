@@ -2,5 +2,4 @@ backend/app/.env
 .venv/
 __pycache__/
 *.py[cod]
-.codex-backup/
 .idea/
