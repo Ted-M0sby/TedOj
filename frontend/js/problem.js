@@ -13,6 +13,7 @@ const judgeResult = document.querySelector("#judgeResult");
 const resultResizeHandle = document.querySelector("#resultResizeHandle");
 const problemSubmissionsLink = document.querySelector("#problemSubmissionsLink");
 const problemTags = document.querySelector("#problemTags");
+const RESTORE_CODE_KEY = "tedoj_restore_submission_code";
 
 const problemId = new URLSearchParams(window.location.search).get("id");
 let starterCode = "";
@@ -209,6 +210,21 @@ function renderJudgeResult(result) {
     `;
 }
 
+function getRestoredSubmissionCode() {
+    const raw = sessionStorage.getItem(RESTORE_CODE_KEY);
+    if (!raw) return null;
+
+    try {
+        const payload = JSON.parse(raw);
+        if (String(payload.problemId) !== String(problemId)) return null;
+        return payload;
+    } catch {
+        return null;
+    } finally {
+        sessionStorage.removeItem(RESTORE_CODE_KEY);
+    }
+}
+
 function setAiAnalysisLoading(button, isLoading) {
     document.querySelectorAll(".ai-analysis-button").forEach((item) => {
         item.disabled = isLoading;
@@ -293,7 +309,13 @@ async function loadProblem() {
         renderTags(problem.tags);
         currentFunctionName = problem.function_name || "solution";
         starterCode = problem.starter_code || "";
-        codeEditor.value = starterCode;
+        const restoredSubmission = getRestoredSubmissionCode();
+        codeEditor.value = restoredSubmission && restoredSubmission.code
+            ? restoredSubmission.code
+            : starterCode;
+        if (restoredSubmission && restoredSubmission.submissionId) {
+            submitStatus.textContent = `已载入提交 #${restoredSubmission.submissionId} 的代码`;
+        }
         renderCases(problem.visible_test_cases || []);
     } catch (error) {
         problemTitle.textContent = "题目加载失败";

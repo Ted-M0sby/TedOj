@@ -92,6 +92,7 @@ class SubmissionResult(BaseModel):
     id: int
     problem_id: int
     language: str
+    code: str
     status: str
     passed_cases: int
     total_cases: int

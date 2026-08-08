@@ -7,6 +7,7 @@ const submissionRows = document.querySelector("#submissionRows");
 const submissionCount = document.querySelector("#submissionCount");
 const submissionDetail = document.querySelector("#submissionDetail");
 const detailStatus = document.querySelector("#detailStatus");
+const RESTORE_CODE_KEY = "tedoj_restore_submission_code";
 
 function escapeHtml(value) {
     return String(value ?? "")
@@ -20,10 +21,6 @@ function escapeHtml(value) {
 function formatDate(value) {
     if (!value) return "-";
     return new Date(value).toLocaleString("zh-CN", { hour12: false });
-}
-
-function formatJson(value) {
-    return JSON.stringify(value, null, 2);
 }
 
 function statusClass(status) {
@@ -67,28 +64,13 @@ function renderRows(items) {
     `).join("");
 }
 
-function renderDetail(item) {
-    const cases = item.case_results || [];
-    detailStatus.textContent = `#${item.id}`;
-    submissionDetail.className = "detail-list";
-    submissionDetail.innerHTML = `
-        <div class="detail-row"><span>题目 ID</span><strong>#${escapeHtml(item.problem_id)}</strong></div>
-        <div class="detail-row"><span>状态</span><strong><span class="status-badge ${statusClass(item.status)}">${escapeHtml(item.status)}</span></strong></div>
-        <div class="detail-row"><span>通过</span><strong>${escapeHtml(item.passed_cases)}/${escapeHtml(item.total_cases)}</strong></div>
-        <div class="detail-row"><span>耗时</span><strong>${escapeHtml(item.runtime_ms)} ms</strong></div>
-        <div class="detail-row"><span>语言</span><strong>${escapeHtml(item.language)}</strong></div>
-        <div class="detail-row"><span>时间</span><strong>${escapeHtml(formatDate(item.created_at))}</strong></div>
-        ${item.error_message ? `<p class="status-line error">${escapeHtml(item.error_message)}</p>` : ""}
-        <h2 class="subsection-title">用例结果</h2>
-        <div class="case-list">
-            ${cases.map((caseResult) => `
-                <article class="case-item">
-                    <strong>用例 ${caseResult.case_index + 1}：${escapeHtml(caseResult.status)}</strong>
-                    <pre>${escapeHtml(formatJson(caseResult))}</pre>
-                </article>
-            `).join("")}
-        </div>
-    `;
+function openSubmissionInProblem(item) {
+    sessionStorage.setItem(RESTORE_CODE_KEY, JSON.stringify({
+        problemId: String(item.problem_id),
+        submissionId: item.id,
+        code: item.code || "",
+    }));
+    window.location.href = `./problem.html?id=${encodeURIComponent(item.problem_id)}`;
 }
 
 async function loadSubmissions() {
@@ -133,7 +115,7 @@ submissionRows.addEventListener("click", async (event) => {
 
     try {
         const detail = await window.TedOJApi.getSubmissionDetail(button.dataset.id);
-        renderDetail(detail);
+        openSubmissionInProblem(detail);
     } catch (error) {
         detailStatus.textContent = "加载失败";
         submissionDetail.className = "detail-empty";
