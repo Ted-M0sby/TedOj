@@ -67,8 +67,14 @@ function renderRows(items) {
 function openSubmissionInProblem(item) {
     sessionStorage.setItem(RESTORE_CODE_KEY, JSON.stringify({
         problemId: String(item.problem_id),
-        submissionId: item.id,
+        id: item.id,
         code: item.code || "",
+        status: item.status,
+        passed_cases: item.passed_cases,
+        total_cases: item.total_cases,
+        runtime_ms: item.runtime_ms,
+        error_message: item.error_message,
+        case_results: item.case_results || [],
     }));
     window.location.href = `./problem.html?id=${encodeURIComponent(item.problem_id)}`;
 }

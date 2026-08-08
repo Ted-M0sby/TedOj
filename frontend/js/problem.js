@@ -210,7 +210,7 @@ function renderJudgeResult(result) {
     `;
 }
 
-function getRestoredSubmissionCode() {
+function getRestoredSubmission() {
     const raw = sessionStorage.getItem(RESTORE_CODE_KEY);
     if (!raw) return null;
 
@@ -309,12 +309,13 @@ async function loadProblem() {
         renderTags(problem.tags);
         currentFunctionName = problem.function_name || "solution";
         starterCode = problem.starter_code || "";
-        const restoredSubmission = getRestoredSubmissionCode();
+        const restoredSubmission = getRestoredSubmission();
         codeEditor.value = restoredSubmission && restoredSubmission.code
             ? restoredSubmission.code
             : starterCode;
-        if (restoredSubmission && restoredSubmission.submissionId) {
-            submitStatus.textContent = `已载入提交 #${restoredSubmission.submissionId} 的代码`;
+        if (restoredSubmission && restoredSubmission.id) {
+            submitStatus.textContent = `已载入提交 #${restoredSubmission.id} 的代码`;
+            renderJudgeResult(restoredSubmission);
         }
         renderCases(problem.visible_test_cases || []);
     } catch (error) {
