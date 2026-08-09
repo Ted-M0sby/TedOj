@@ -47,6 +47,9 @@ class ProblemListItem(BaseModel):
     difficulty: str
     tags: List[str]
     judge_mode: str
+    submission_count: int = 0
+    accepted_count: int = 0
+    acceptance_rate: Optional[float] = None
     is_active: bool
     created_at: str
 
@@ -60,6 +63,9 @@ class ProblemDetail(BaseModel):
     judge_mode: str
     function_name: str
     starter_code: str
+    submission_count: int = 0
+    accepted_count: int = 0
+    acceptance_rate: Optional[float] = None
     visible_test_cases: List[TestCaseVisible]
     created_at: str
 
@@ -95,6 +101,7 @@ class CaseResult(BaseModel):
 class SubmissionResult(BaseModel):
     id: int
     problem_id: int
+    user_id: Optional[int] = None
     language: str
     code: str
     status: str
@@ -109,6 +116,7 @@ class SubmissionResult(BaseModel):
 class SubmissionListItem(BaseModel):
     id: int
     problem_id: int
+    user_id: Optional[int] = None
     language: str
     status: str
     passed_cases: int
@@ -124,3 +132,20 @@ class AIAnalysisCreate(BaseModel):
 
 class AIAnalysisResult(BaseModel):
     answer: str
+
+
+class UserAuthCreate(BaseModel):
+    username: str
+    password: str
+
+
+class UserInfo(BaseModel):
+    id: int
+    username: str
+    created_at: str
+
+
+class AuthToken(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user: UserInfo

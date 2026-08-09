@@ -237,4 +237,5 @@ clearBtn.addEventListener("click", () => {
 });
 
 adminPassword.value = sessionStorage.getItem(PASSWORD_STORAGE_KEY) || "";
+window.TedOJAuth.init();
 resetDraft();

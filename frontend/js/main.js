@@ -83,9 +83,10 @@ function getTagStats(problems) {
     return stats;
 }
 
-function estimateAcceptance(problem) {
-    const id = Number(problem.id) || 1;
-    return `${38 + ((id * 7) % 43)}.${id % 10}%`;
+function formatAcceptance(problem) {
+    if (!problem.submission_count) return "暂无提交";
+    const rate = Number(problem.acceptance_rate);
+    return Number.isFinite(rate) ? `${rate.toFixed(1)}%` : "暂无提交";
 }
 
 function matchesCurrentTag(problem) {
@@ -152,7 +153,7 @@ function renderProblemRows() {
     if (!problems.length) {
         problemList.innerHTML = `
             <tr>
-                <td colspan="4">
+                <td colspan="5">
                     <div class="empty-state">没有匹配的题目。</div>
                 </td>
             </tr>
@@ -177,7 +178,8 @@ function renderProblemRows() {
                             : `<button type="button" data-tag="${UNCATEGORIZED_TAG}">未分类</button>`}
                     </div>
                 </td>
-                <td class="acceptance">${estimateAcceptance(problem)}</td>
+                <td class="acceptance">${escapeHtml(problem.submission_count || 0)}</td>
+                <td class="acceptance">${formatAcceptance(problem)}</td>
                 <td>
                     <span class="difficulty ${difficultyClass(problem.difficulty)}">${escapeHtml(difficultyLabel(problem.difficulty))}</span>
                 </td>
@@ -203,7 +205,7 @@ async function loadProblems() {
         topicTags.innerHTML = "";
         problemList.innerHTML = `
             <tr>
-                <td colspan="4">
+                <td colspan="5">
                     <div class="empty-state">题目加载失败：${escapeHtml(error.message)}</div>
                 </td>
             </tr>
@@ -243,4 +245,5 @@ problemList.addEventListener("click", (event) => {
     }
 });
 
+window.TedOJAuth.init({ promptOnEntry: true });
 loadProblems();

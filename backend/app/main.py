@@ -1,6 +1,13 @@
+import base64
+import hashlib
+import hmac
 import json
 import os
+import secrets
+import time
 from typing import List, Optional
+from sqlalchemy import case, func
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 import models
 from database import get_db
@@ -22,6 +29,9 @@ from schemas import (
     SubmissionCreate,
     SubmissionListItem,
     SubmissionResult,
+    AuthToken,
+    UserAuthCreate,
+    UserInfo,
 )
 
 api = FastAPI()
@@ -33,6 +43,8 @@ SUPPORTED_KNOWLEDGE_CATEGORIES = {
 }
 SUPPORTED_DIFFICULTIES = {"Easy", "Medium", "Hard"}
 FORBIDDEN_TAGS = {"easy", "medium", "hard", "简单", "中等", "困难"}
+PASSWORD_HASH_ITERATIONS = 120000
+ACCESS_TOKEN_EXPIRE_SECONDS = 7 * 24 * 60 * 60
 
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -48,6 +60,183 @@ api.add_middleware(
 @api.on_event("startup")
 def handle_startup():
     ensure_schema()
+
+
+def base64url_encode(data: bytes) -> str:
+    return base64.urlsafe_b64encode(data).rstrip(b"=").decode("ascii")
+
+
+def base64url_decode(value: str) -> bytes:
+    padding = "=" * (-len(value) % 4)
+    return base64.urlsafe_b64decode(f"{value}{padding}".encode("ascii"))
+
+
+def get_jwt_secret() -> str:
+    secret = get_config_value("JWT_SECRET_KEY")
+    if not secret:
+        raise HTTPException(status_code=500, detail="请先配置 JWT_SECRET_KEY")
+    return secret
+
+
+def hash_password(password: str) -> str:
+    salt = secrets.token_hex(16)
+    digest = hashlib.pbkdf2_hmac(
+        "sha256",
+        password.encode("utf-8"),
+        salt.encode("utf-8"),
+        PASSWORD_HASH_ITERATIONS,
+    ).hex()
+    return f"pbkdf2_sha256${PASSWORD_HASH_ITERATIONS}${salt}${digest}"
+
+
+def verify_password(password: str, password_hash: str) -> bool:
+    try:
+        algorithm, iterations_text, salt, expected = password_hash.split("$", 3)
+        iterations = int(iterations_text)
+    except ValueError:
+        return False
+
+    if algorithm != "pbkdf2_sha256":
+        return False
+
+    actual = hashlib.pbkdf2_hmac(
+        "sha256",
+        password.encode("utf-8"),
+        salt.encode("utf-8"),
+        iterations,
+    ).hex()
+    return hmac.compare_digest(actual, expected)
+
+
+def normalize_username(username: str) -> str:
+    value = str(username or "").strip()
+    if not value:
+        raise HTTPException(status_code=400, detail="用户名不能为空")
+    if len(value) > 64:
+        raise HTTPException(status_code=400, detail="用户名最多 64 个字符")
+    return value
+
+
+def validate_password(password: str) -> str:
+    value = str(password or "")
+    if len(value) < 8:
+        raise HTTPException(status_code=400, detail="密码至少 8 位，并且必须同时包含字母和数字")
+    has_letter = any("a" <= char.lower() <= "z" for char in value)
+    has_digit = any(char.isdigit() for char in value)
+    if not has_letter or not has_digit:
+        raise HTTPException(status_code=400, detail="密码至少 8 位，并且必须同时包含字母和数字")
+    return value
+
+
+def create_access_token(user: models.User) -> str:
+    now = int(time.time())
+    payload = {
+        "sub": str(user.id),
+        "username": user.username,
+        "iat": now,
+        "exp": now + ACCESS_TOKEN_EXPIRE_SECONDS,
+    }
+    header = {"alg": "HS256", "typ": "JWT"}
+    signing_input = ".".join([
+        base64url_encode(json.dumps(header, separators=(",", ":")).encode("utf-8")),
+        base64url_encode(json.dumps(payload, separators=(",", ":")).encode("utf-8")),
+    ])
+    signature = hmac.new(
+        get_jwt_secret().encode("utf-8"),
+        signing_input.encode("ascii"),
+        hashlib.sha256,
+    ).digest()
+    return f"{signing_input}.{base64url_encode(signature)}"
+
+
+def decode_access_token(token: str) -> dict:
+    try:
+        header_text, payload_text, signature_text = token.split(".", 2)
+        signing_input = f"{header_text}.{payload_text}"
+        expected_signature = hmac.new(
+            get_jwt_secret().encode("utf-8"),
+            signing_input.encode("ascii"),
+            hashlib.sha256,
+        ).digest()
+        actual_signature = base64url_decode(signature_text)
+        if not hmac.compare_digest(actual_signature, expected_signature):
+            raise ValueError("bad signature")
+
+        payload = json.loads(base64url_decode(payload_text).decode("utf-8"))
+        if not isinstance(payload, dict):
+            raise ValueError("bad payload")
+    except Exception as e:
+        raise HTTPException(status_code=401, detail="登录状态无效，请重新登录") from e
+
+    try:
+        expires_at = int(payload.get("exp", 0))
+    except (TypeError, ValueError) as e:
+        raise HTTPException(status_code=401, detail="登录状态无效，请重新登录") from e
+
+    if expires_at < int(time.time()):
+        raise HTTPException(status_code=401, detail="登录已过期，请重新登录")
+
+    return payload
+
+
+def get_authorization_token(authorization: Optional[str]) -> Optional[str]:
+    if not authorization:
+        return None
+
+    prefix = "Bearer "
+    if not authorization.startswith(prefix):
+        raise HTTPException(status_code=401, detail="登录状态无效，请重新登录")
+
+    token = authorization[len(prefix):].strip()
+    if not token:
+        raise HTTPException(status_code=401, detail="登录状态无效，请重新登录")
+    return token
+
+
+def find_user_from_authorization(
+    authorization: Optional[str],
+    db: Session,
+    required: bool,
+) -> Optional[models.User]:
+    token = get_authorization_token(authorization)
+    if not token:
+        if required:
+            raise HTTPException(status_code=401, detail="请先登录")
+        return None
+
+    payload = decode_access_token(token)
+    try:
+        user_id = int(payload.get("sub"))
+    except (TypeError, ValueError) as e:
+        raise HTTPException(status_code=401, detail="登录状态无效，请重新登录") from e
+
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if user is None:
+        raise HTTPException(status_code=401, detail="登录状态无效，请重新登录")
+    return user
+
+
+def get_current_user(
+    authorization: Optional[str] = Header(default=None, alias="Authorization"),
+    db: Session = Depends(get_db),
+) -> models.User:
+    return find_user_from_authorization(authorization, db, required=True)
+
+
+def build_user_info(user: models.User) -> dict:
+    return {
+        "id": user.id,
+        "username": user.username,
+        "created_at": user.created_at.isoformat(),
+    }
+
+
+def build_auth_response(user: models.User) -> dict:
+    return {
+        "access_token": create_access_token(user),
+        "token_type": "bearer",
+        "user": build_user_info(user),
+    }
 
 
 def normalize_judge_mode(value: Optional[str]) -> str:
@@ -393,6 +582,41 @@ def validate_ai_problem_draft(problem: ProblemCreate) -> ProblemCreate:
     })
 
 
+def build_problem_stats(db: Session, problem_ids: List[int]) -> dict:
+    if not problem_ids:
+        return {}
+
+    rows = db.query(
+        models.Submission.problem_id,
+        func.count(models.Submission.id),
+        func.sum(case((models.Submission.status == "Accepted", 1), else_=0)),
+    ).filter(
+        models.Submission.problem_id.in_(problem_ids)
+    ).group_by(
+        models.Submission.problem_id
+    ).all()
+
+    stats = {}
+    for problem_id, total, accepted in rows:
+        submission_count = int(total or 0)
+        accepted_count = int(accepted or 0)
+        stats[problem_id] = {
+            "submission_count": submission_count,
+            "accepted_count": accepted_count,
+            "acceptance_rate": round(accepted_count * 100 / submission_count, 1) if submission_count else None,
+        }
+
+    return stats
+
+
+def get_problem_stat(stats: dict, problem_id: int) -> dict:
+    return stats.get(problem_id, {
+        "submission_count": 0,
+        "accepted_count": 0,
+        "acceptance_rate": None,
+    })
+
+
 def build_problem_created_response(db_problem, test_case_count: int) -> dict:
     return {
         'id': db_problem.id,
@@ -443,18 +667,65 @@ async def handle_test():
     return {'status': 'ok'}
 
 
+@api.post('/api/auth/register', response_model=AuthToken)
+def handle_register(payload: UserAuthCreate, db: Session = Depends(get_db)):
+    get_jwt_secret()
+    username = normalize_username(payload.username)
+    password = validate_password(payload.password)
+
+    if db.query(models.User).filter(models.User.username == username).first() is not None:
+        raise HTTPException(status_code=400, detail="用户名已存在")
+
+    user = models.User(
+        username=username,
+        password_hash=hash_password(password),
+    )
+    db.add(user)
+
+    try:
+        db.commit()
+    except IntegrityError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="用户名已存在") from e
+
+    db.refresh(user)
+    return build_auth_response(user)
+
+
+@api.post('/api/auth/login', response_model=AuthToken)
+def handle_login(payload: UserAuthCreate, db: Session = Depends(get_db)):
+    get_jwt_secret()
+    username = normalize_username(payload.username)
+    user = db.query(models.User).filter(models.User.username == username).first()
+
+    if user is None or not verify_password(payload.password, user.password_hash):
+        raise HTTPException(status_code=401, detail="用户名或密码错误")
+
+    return build_auth_response(user)
+
+
+@api.get('/api/auth/me', response_model=UserInfo)
+def handle_get_current_user(current_user: models.User = Depends(get_current_user)):
+    return build_user_info(current_user)
+
+
 @api.get('/api/problems', response_model=List[ProblemListItem])  # 获取题目列表
 def handle_get_problems(db: Session = Depends(get_db)):
     problems = db.query(models.Problem).filter(models.Problem.is_active == True).all()
+    stats = build_problem_stats(db, [problem.id for problem in problems])
 
     result = []
     for problem in problems:
+        problem_stats = get_problem_stat(stats, problem.id)
         result.append({
             'id': problem.id,
             'title': problem.title,
             'difficulty': problem.difficulty,
             'tags': parse_tags(problem.tags),
             'judge_mode': normalize_judge_mode(getattr(problem, "judge_mode", None)),
+            'submission_count': problem_stats["submission_count"],
+            'accepted_count': problem_stats["accepted_count"],
+            'acceptance_rate': problem_stats["acceptance_rate"],
             'is_active': problem.is_active,
             'created_at': problem.created_at.isoformat(),
         })
@@ -483,6 +754,8 @@ def handle_get_problems_list(problem_id: int, db: Session = Depends(get_db)):
             'expected': test_case.expected,
         })
 
+    problem_stats = get_problem_stat(build_problem_stats(db, [problem.id]), problem.id)
+
     return {
         'id': problem.id,
         'title': problem.title,
@@ -492,6 +765,9 @@ def handle_get_problems_list(problem_id: int, db: Session = Depends(get_db)):
         'judge_mode': normalize_judge_mode(getattr(problem, "judge_mode", None)),
         'function_name': problem.function_name,
         'starter_code': problem.starter_code,
+        'submission_count': problem_stats["submission_count"],
+        'accepted_count': problem_stats["accepted_count"],
+        'acceptance_rate': problem_stats["acceptance_rate"],
         'visible_test_cases': visible_test_cases,
         'created_at': problem.created_at.isoformat(),
     }
@@ -595,7 +871,13 @@ def handle_post_problems(problem: ProblemCreate, db: Session = Depends(get_db)):
 
 
 @api.post('/api/problems/{problem_id}/submissions', response_model=SubmissionResult)  # 提交代码
-def handle_post_submission(problem_id: int, submission: SubmissionCreate, db: Session = Depends(get_db)):
+def handle_post_submission(
+    problem_id: int,
+    submission: SubmissionCreate,
+    authorization: Optional[str] = Header(default=None, alias="Authorization"),
+    db: Session = Depends(get_db),
+):
+    current_user = find_user_from_authorization(authorization, db, required=False)
     problem = db.query(models.Problem).filter(models.Problem.id == problem_id).first()
 
     if problem is None:
@@ -619,6 +901,7 @@ def handle_post_submission(problem_id: int, submission: SubmissionCreate, db: Se
 
     db_submission = models.Submission(
         problem_id=problem_id,
+        user_id=current_user.id if current_user else None,
         language=language,
         code=submission.code,
         status=judge_result["status"],
@@ -636,6 +919,7 @@ def handle_post_submission(problem_id: int, submission: SubmissionCreate, db: Se
     return {
         'id': db_submission.id,
         'problem_id': db_submission.problem_id,
+        'user_id': db_submission.user_id,
         'language': db_submission.language,
         'code': db_submission.code,
         'status': db_submission.status,
@@ -649,8 +933,12 @@ def handle_post_submission(problem_id: int, submission: SubmissionCreate, db: Se
 
 
 @api.get('/api/submissions', response_model=List[SubmissionListItem])  # 获取提交列表
-def handle_get_problems_submissions(problem_id: Optional[int] = None, db: Session = Depends(get_db)):
-    query = db.query(models.Submission)
+def handle_get_problems_submissions(
+    problem_id: Optional[int] = None,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    query = db.query(models.Submission).filter(models.Submission.user_id == current_user.id)
 
     if problem_id is not None:
         query = query.filter(models.Submission.problem_id == problem_id)
@@ -662,6 +950,7 @@ def handle_get_problems_submissions(problem_id: Optional[int] = None, db: Sessio
         result.append({
             'id': submission.id,
             'problem_id': submission.problem_id,
+            'user_id': submission.user_id,
             'language': submission.language,
             'status': submission.status,
             'passed_cases': submission.passed_cases,
@@ -674,7 +963,11 @@ def handle_get_problems_submissions(problem_id: Optional[int] = None, db: Sessio
 
 
 @api.get('/api/submissions/{submission_id}', response_model=SubmissionResult)  # 获取提交详情
-def handle_get_submission_detail(submission_id: int, db: Session = Depends(get_db)):
+def handle_get_submission_detail(
+    submission_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
     submission = db.query(models.Submission).filter(
         models.Submission.id == submission_id
     ).first()
@@ -682,9 +975,13 @@ def handle_get_submission_detail(submission_id: int, db: Session = Depends(get_d
     if submission is None:
         raise HTTPException(status_code=404, detail='提交记录不存在')
 
+    if submission.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail='不能查看别人的提交记录')
+
     return {
         'id': submission.id,
         'problem_id': submission.problem_id,
+        'user_id': submission.user_id,
         'language': submission.language,
         'code': submission.code,
         'status': submission.status,
@@ -702,6 +999,7 @@ def handle_post_submission_ai_analysis(
     submission_id: int,
     analysis: AIAnalysisCreate,
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
     submission = db.query(models.Submission).filter(
         models.Submission.id == submission_id
@@ -709,6 +1007,9 @@ def handle_post_submission_ai_analysis(
 
     if submission is None:
         raise HTTPException(status_code=404, detail='提交记录不存在')
+
+    if submission.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail='只能分析自己的提交记录')
 
     problem = db.query(models.Problem).filter(
         models.Problem.id == submission.problem_id

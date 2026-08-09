@@ -20,6 +20,15 @@ class Problem(Base):
     created_at = Column(DateTime, default=datetime.now)
 
 
+class User(Base):
+    __tablename__ = 'users'
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String(64), nullable=False, unique=True, index=True)
+    password_hash = Column(String(255), nullable=False)
+    created_at = Column(DateTime, default=datetime.now)
+
+
 class TestCase(Base):
     __tablename__ = 'test_cases'
 
@@ -37,6 +46,7 @@ class Submission(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     problem_id = Column(Integer, ForeignKey('problems.id'), nullable=False)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=True, index=True)
     language = Column(String(30), nullable=False)
     code = Column(Text, nullable=False)
     status = Column(String(20), nullable=False)

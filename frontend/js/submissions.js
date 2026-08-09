@@ -64,6 +64,27 @@ function renderRows(items) {
     `).join("");
 }
 
+function renderLoginRequired() {
+    submissionCount.textContent = "0 条";
+    setApiStatus("登录后查看自己的提交记录。", "");
+    detailStatus.textContent = "未登录";
+    submissionDetail.className = "detail-empty";
+    submissionDetail.textContent = "登录后可以查看提交详情，并从记录恢复代码。";
+    submissionRows.innerHTML = `
+        <tr>
+            <td colspan="7">
+                <div class="empty-state auth-required-state">
+                    登录后查看自己的提交记录。
+                    <div>
+                        <button class="button primary" type="button" data-auth-action="login">登录</button>
+                        <button class="button secondary" type="button" data-auth-action="register">注册</button>
+                    </div>
+                </div>
+            </td>
+        </tr>
+    `;
+}
+
 function openSubmissionInProblem(item) {
     sessionStorage.setItem(RESTORE_CODE_KEY, JSON.stringify({
         problemId: String(item.problem_id),
@@ -80,6 +101,11 @@ function openSubmissionInProblem(item) {
 }
 
 async function loadSubmissions() {
+    if (!window.TedOJAuth.isAuthenticated()) {
+        renderLoginRequired();
+        return;
+    }
+
     refreshBtn.disabled = true;
     setApiStatus("正在加载提交记录...", "");
 
@@ -94,7 +120,7 @@ async function loadSubmissions() {
                 <td colspan="7">提交记录加载失败：${escapeHtml(error.message)}</td>
             </tr>
         `;
-        setApiStatus("加载失败，请确认后端服务已启动。", "error");
+        setApiStatus(error.message, "error");
     } finally {
         refreshBtn.disabled = false;
     }
@@ -113,6 +139,12 @@ clearFilterBtn.addEventListener("click", () => {
 refreshBtn.addEventListener("click", loadSubmissions);
 
 submissionRows.addEventListener("click", async (event) => {
+    const authButton = event.target.closest("[data-auth-action]");
+    if (authButton) {
+        window.TedOJAuth.showAuthModal(authButton.dataset.authAction);
+        return;
+    }
+
     const button = event.target.closest("button[data-id]");
     if (!button) return;
 
@@ -136,4 +168,6 @@ if (queryProblemId) {
     problemIdFilter.value = queryProblemId;
 }
 
+window.TedOJAuth.init();
+window.addEventListener("tedoj:auth-changed", loadSubmissions);
 loadSubmissions();

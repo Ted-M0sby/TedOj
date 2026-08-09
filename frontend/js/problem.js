@@ -1,5 +1,6 @@
 const problemTitle = document.querySelector("#problemTitle");
 const problemMeta = document.querySelector("#problemMeta");
+const problemSubmissionStats = document.querySelector("#problemSubmissionStats");
 const problemDescription = document.querySelector("#problemDescription");
 const difficultyBadge = document.querySelector("#difficultyBadge");
 const functionNameLabel = document.querySelector("#functionNameLabel");
@@ -98,6 +99,13 @@ function formatStdioExpected(value) {
 function formatDate(value) {
     if (!value) return "-";
     return new Date(value).toLocaleString("zh-CN", { hour12: false });
+}
+
+function formatProblemStats(problem) {
+    if (!problem.submission_count) return "暂无提交";
+    const rate = Number(problem.acceptance_rate);
+    const rateText = Number.isFinite(rate) ? `${rate.toFixed(1)}%` : "暂无提交";
+    return `${problem.submission_count} 次 / ${rateText}`;
 }
 
 function difficultyClass(value) {
@@ -245,7 +253,7 @@ function renderAiAnalysis(message, type) {
     panel.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
-function requestAiAnalysis(category, button) {
+async function requestAiAnalysis(category, button) {
     const option = aiAnalysisOptions[category];
 
     if (!latestSubmissionId || !option) {
@@ -253,36 +261,28 @@ function requestAiAnalysis(category, button) {
         return;
     }
 
-    if (typeof $ === "undefined") {
-        renderAiAnalysis("页面没有加载 jQuery，无法发起 AI 分析请求。", "error");
+    if (!window.TedOJAuth.isAuthenticated()) {
+        renderAiAnalysis("登录后可使用 AI 分析。", "error");
+        window.TedOJAuth.showAuthModal("login", {
+            message: "登录后可使用 AI 分析，并保存你的提交记录。",
+        });
         return;
     }
 
     setAiAnalysisLoading(button, true);
     renderAiAnalysis("正在请求 AI 分析...", "");
 
-    $.ajax({
-        url: `${window.TedOJApi.getApiBaseUrl()}/api/submissions/${latestSubmissionId}/ai-analysis`,
-        method: "POST",
-        contentType: "application/json",
-        dataType: "json",
-        data: JSON.stringify({
+    try {
+        const data = await window.TedOJApi.createAiAnalysis(latestSubmissionId, {
             knowledge_category: category,
             question: option.question,
-        }),
-    })
-        .done((data) => {
-            renderAiAnalysis(data.answer || "AI 没有返回内容。", "");
-        })
-        .fail((xhr) => {
-            const detail = xhr.responseJSON && xhr.responseJSON.detail
-                ? xhr.responseJSON.detail
-                : (xhr.responseText || "AI 分析请求失败。");
-            renderAiAnalysis(detail, "error");
-        })
-        .always(() => {
-            setAiAnalysisLoading(button, false);
         });
+        renderAiAnalysis(data.answer || "AI 没有返回内容。", "");
+    } catch (error) {
+        renderAiAnalysis(error.message || "AI 分析请求失败。", "error");
+    } finally {
+        setAiAnalysisLoading(button, false);
+    }
 }
 
 async function loadProblem() {
@@ -300,6 +300,7 @@ async function loadProblem() {
         document.title = `TedOJ - ${problem.title}`;
         problemTitle.textContent = `#${problem.id} ${problem.title}`;
         problemMeta.textContent = formatDate(problem.created_at);
+        problemSubmissionStats.textContent = formatProblemStats(problem);
         problemDescription.textContent = problem.description;
         difficultyBadge.textContent = problem.difficulty;
         difficultyBadge.className = `problem-difficulty ${difficultyClass(problem.difficulty)}`;
@@ -392,4 +393,5 @@ resultResizeHandle.addEventListener("pointerdown", (event) => {
     resultResizeHandle.addEventListener("pointercancel", handlePointerUp);
 });
 
+window.TedOJAuth.init();
 loadProblem();

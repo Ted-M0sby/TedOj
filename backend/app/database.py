@@ -1,11 +1,12 @@
 import os
 from pathlib import Path
+from typing import Optional
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 
-def get_config_value(key: str) -> str | None:
+def get_config_value(key: str) -> Optional[str]:
     value = os.getenv(key)
     if value:
         return value
