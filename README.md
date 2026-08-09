@@ -13,6 +13,7 @@ TedOJ 是一个轻量级在线判题平台，支持函数题和标准输入输�
 - `stdio` 标准输入输出判题
 - Dify AI 分析提交
 - Dify AI 生成题目草稿
+- Dify AI 自动创建题目草稿
 - 管理员预览并确认保存题目
 
 ## 技术栈
@@ -50,6 +51,7 @@ DATABASE_URL=mysql+pymysql://用户名:密码@127.0.0.1:3306/tedoj?charset=utf8m
 DIFY_API_KEY=your_dify_analysis_key
 DIFY_WORKFLOW_URL=https://api.dify.ai/v1/workflows/run
 DIFY_PROBLEM_API_KEY=your_dify_problem_key
+DIFY_AUTO_PROBLEM_API_KEY=your_dify_auto_problem_key
 ADMIN_CREATE_PASSWORD=your_admin_password
 ```
 
@@ -85,6 +87,7 @@ GET  /api/submissions
 GET  /api/submissions/{submission_id}
 POST /api/submissions/{submission_id}/ai-analysis
 POST /api/admin/problem-drafts/generate
+POST /api/admin/problem-drafts/auto-generate
 POST /api/admin/problem-drafts/save
 ```
 

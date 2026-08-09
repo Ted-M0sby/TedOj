@@ -13,6 +13,7 @@ import requests
 from schemas import (
     AIAnalysisCreate,
     AIAnalysisResult,
+    AIAutoProblemDraftCreate,
     AIProblemDraftCreate,
     ProblemCreate,
     ProblemCreated,
@@ -123,6 +124,14 @@ def get_dify_problem_workflow_url() -> str:
     return get_dify_workflow_url()
 
 
+def get_dify_auto_problem_workflow_url() -> str:
+    workflow_url = get_config_value("DIFY_AUTO_PROBLEM_WORKFLOW_URL")
+    if workflow_url:
+        return workflow_url
+
+    return get_dify_workflow_url()
+
+
 def extract_dify_answer(data: object) -> str:
     if not isinstance(data, dict):
         return str(data or "")
@@ -200,8 +209,18 @@ def call_dify_workflow(inputs: dict) -> str:
 
 def parse_json_candidate(value: object) -> Optional[dict]:
     if isinstance(value, dict):
-        if isinstance(value.get("structured_output"), dict):
-            return value["structured_output"]
+        if "title" in value and "test_cases" in value:
+            return value
+
+        for key in ["structured_output", "problem", "output", "result"]:
+            nested = value.get(key)
+            if nested is None:
+                continue
+
+            parsed = parse_json_candidate(nested)
+            if isinstance(parsed, dict) and "title" in parsed and "test_cases" in parsed:
+                return parsed
+
         return value
 
     if isinstance(value, str):
@@ -283,6 +302,13 @@ def ensure_text(value: object, field_name: str) -> str:
     if not text:
         raise HTTPException(status_code=400, detail=f"{field_name} 不能为空")
     return text
+
+
+def normalize_visible_case_count(value: int) -> int:
+    if value < 2 or value > 8:
+        raise HTTPException(status_code=400, detail="visible_case_count 必须在 2 到 8 之间")
+
+    return value
 
 
 def ensure_trailing_newline(value: str) -> str:
@@ -479,9 +505,7 @@ def handle_generate_ai_problem_draft(
     problem_requirement = ensure_text(draft_request.problem_requirement, "problem_requirement")
     judge_mode = normalize_judge_mode(draft_request.judge_mode)
     difficulty = normalize_difficulty(draft_request.difficulty)
-    visible_case_count = draft_request.visible_case_count
-    if visible_case_count < 2 or visible_case_count > 8:
-        raise HTTPException(status_code=400, detail="visible_case_count 必须在 2 到 8 之间")
+    visible_case_count = normalize_visible_case_count(draft_request.visible_case_count)
 
     raw_data = call_dify_workflow_raw(
         {
@@ -495,6 +519,56 @@ def handle_generate_ai_problem_draft(
         },
         api_key=get_config_value("DIFY_PROBLEM_API_KEY"),
         workflow_url=get_dify_problem_workflow_url(),
+    )
+    payload = extract_problem_draft_payload(raw_data)
+
+    try:
+        problem = ProblemCreate(**payload)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Dify 返回题目结构无效：{e}") from e
+
+    return validate_ai_problem_draft(problem)
+
+
+@api.post('/api/admin/problem-drafts/auto-generate', response_model=ProblemCreate)
+def handle_auto_generate_ai_problem_draft(
+    draft_request: AIAutoProblemDraftCreate,
+    db: Session = Depends(get_db),
+    _admin: None = Depends(verify_admin_create_password),
+):
+    visible_case_count = normalize_visible_case_count(draft_request.visible_case_count)
+    api_key = get_config_value("DIFY_AUTO_PROBLEM_API_KEY")
+    workflow_url = get_dify_auto_problem_workflow_url()
+    if not api_key or not workflow_url:
+        raise HTTPException(
+            status_code=500,
+            detail="请先配置 DIFY_AUTO_PROBLEM_API_KEY，并配置 DIFY_AUTO_PROBLEM_WORKFLOW_URL 或 DIFY_WORKFLOW_URL",
+        )
+
+    recent_problems = db.query(models.Problem).filter(
+        models.Problem.is_active == True
+    ).order_by(models.Problem.id.desc()).limit(20).all()
+
+    raw_data = call_dify_workflow_raw(
+        {
+            "generation_mode": "auto",
+            "visible_case_count": visible_case_count,
+            "supported_judge_modes": "stdio,function",
+            "supported_difficulties": "Easy,Medium,Hard",
+            "forbidden_tags": "Easy,Medium,Hard,简单,中等,困难",
+            "existing_problems": json.dumps([
+                {
+                    "id": problem.id,
+                    "title": problem.title,
+                    "difficulty": problem.difficulty,
+                    "tags": parse_tags(problem.tags),
+                    "judge_mode": normalize_judge_mode(getattr(problem, "judge_mode", None)),
+                }
+                for problem in recent_problems
+            ], ensure_ascii=False),
+        },
+        api_key=api_key,
+        workflow_url=workflow_url,
     )
     payload = extract_problem_draft_payload(raw_data)
 

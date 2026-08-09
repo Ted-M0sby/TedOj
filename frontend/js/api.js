@@ -80,6 +80,13 @@
             },
             body: JSON.stringify(payload),
         }),
+        autoGenerateProblemDraft: (payload, adminPassword) => request("/api/admin/problem-drafts/auto-generate", {
+            method: "POST",
+            headers: {
+                "X-Admin-Password": adminPassword,
+            },
+            body: JSON.stringify(payload),
+        }),
         saveProblemDraft: (payload, adminPassword) => request("/api/admin/problem-drafts/save", {
             method: "POST",
             headers: {

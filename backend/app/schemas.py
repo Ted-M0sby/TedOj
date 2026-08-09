@@ -37,6 +37,10 @@ class AIProblemDraftCreate(BaseModel):
     visible_case_count: int = 3
 
 
+class AIAutoProblemDraftCreate(BaseModel):
+    visible_case_count: int = 3
+
+
 class ProblemListItem(BaseModel):
     id: int
     title: str

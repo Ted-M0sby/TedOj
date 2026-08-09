@@ -7,6 +7,7 @@ const difficulty = document.querySelector("#difficulty");
 const tags = document.querySelector("#tags");
 const visibleCaseCount = document.querySelector("#visibleCaseCount");
 const generateBtn = document.querySelector("#generateBtn");
+const autoGenerateBtn = document.querySelector("#autoGenerateBtn");
 const clearBtn = document.querySelector("#clearBtn");
 const saveBtn = document.querySelector("#saveBtn");
 const draftStatus = document.querySelector("#draftStatus");
@@ -42,10 +43,12 @@ function setStatus(message, type) {
     draftStatus.className = `status-line ${type || ""}`;
 }
 
-function setBusy(isBusy) {
+function setBusy(isBusy, mode) {
     generateBtn.disabled = isBusy;
+    autoGenerateBtn.disabled = isBusy;
     saveBtn.disabled = isBusy || !currentDraft;
-    generateBtn.textContent = isBusy ? "生成中..." : "生成草稿";
+    generateBtn.textContent = isBusy && mode === "manual" ? "生成中..." : "生成草稿";
+    autoGenerateBtn.textContent = isBusy && mode === "auto" ? "自动创建中..." : "自动创建";
 }
 
 function getAdminPassword() {
@@ -59,6 +62,12 @@ function getDraftPayload() {
         problem_requirement: problemRequirement.value.trim(),
         difficulty: difficulty.value,
         tags: tags.value.trim(),
+        visible_case_count: Number(visibleCaseCount.value || 3),
+    };
+}
+
+function getAutoDraftPayload() {
+    return {
         visible_case_count: Number(visibleCaseCount.value || 3),
     };
 }
@@ -149,7 +158,7 @@ draftForm.addEventListener("submit", async (event) => {
 
     sessionStorage.setItem(PASSWORD_STORAGE_KEY, password);
     resetDraft();
-    setBusy(true);
+    setBusy(true, "manual");
     setStatus("正在调用 Dify 生成题目...", "");
 
     try {
@@ -158,6 +167,29 @@ draftForm.addEventListener("submit", async (event) => {
         setStatus("草稿已生成，请检查后保存。", "ok");
     } catch (error) {
         setStatus(`生成失败：${error.message}`, "error");
+    } finally {
+        setBusy(false);
+    }
+});
+
+autoGenerateBtn.addEventListener("click", async () => {
+    const password = getAdminPassword();
+    if (!password) {
+        setStatus("请输入管理员密码。", "error");
+        return;
+    }
+
+    sessionStorage.setItem(PASSWORD_STORAGE_KEY, password);
+    resetDraft();
+    setBusy(true, "auto");
+    setStatus("正在调用 Dify 自动创建题目...", "");
+
+    try {
+        currentDraft = await window.TedOJApi.autoGenerateProblemDraft(getAutoDraftPayload(), password);
+        renderDraft(currentDraft);
+        setStatus("自动草稿已生成，请检查后保存。", "ok");
+    } catch (error) {
+        setStatus(`自动创建失败：${error.message}`, "error");
     } finally {
         setBusy(false);
     }
